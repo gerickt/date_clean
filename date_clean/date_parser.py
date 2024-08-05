@@ -42,7 +42,7 @@ def preprocess_date_string(date_str):
 def parse_relative_time(date_str, timezone):
     now = datetime.now(pytz.timezone(timezone))
 
-    for pattern, time_unit in RELATIVE_TIME_PATTERNS.items():
+    for pattern, time_unit in RELATIVE_TIME_PATTERNS:
         match = pattern.search(date_str)
         if match:
             value = int(match.group(1))
