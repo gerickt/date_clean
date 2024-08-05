@@ -21,6 +21,8 @@ setup(
     install_requires=[
         'python-dateutil',
         'pytz',
+        'tzdata',  # Agrega tzdata a la lista de dependencias
+
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.9",
 )
