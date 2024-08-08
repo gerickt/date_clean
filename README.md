@@ -11,7 +11,14 @@ pip install git+https://github.com/gerickt/date_clean.git
 ```
 
 ## Uso
-La función principal del paquete es homogenize_date(date_str, include_time=False, timezone="UTC"). Esta función toma una cadena de fecha como entrada y devuelve una fecha formateada en el formato YYYY-MM-DDTHH:MM:SS-TZ si include_time es True, o YYYY-MM-DD si es False.
+La función principal del paquete es `homogenize_date(date_string, include_time=Bool, timezone)`. Esta función toma una cadena de texto (fecha) como entrada y devuelve una fecha formateada en el formato ISO 8601. 
+
+**Parámetro obligatorio `include_time`:**
+La función `homogenize_date` tiene el parametro obligatorio `include_time` (por defecto en `True`). Si se establece en `True`, incluira en la salida la hora y zona horaria: YYYY-MM-DDTHH:MM:SS-TZ o YYYY-MM-DD si es `False`.
+
+**Parámetro opcional `assume_current_century`:**
+
+La función `homogenize_date` ahora tiene un parámetro opcional `assume_current_century` (por defecto en `True`). Si se establece en `True`, la librería asumirá que los años abreviados (por ejemplo, "24") pertenecen al siglo actual. Puedes cambiarlo a `False` si necesitas interpretar los años abreviados de otra manera.
 
 **Ejemplo de uso:**
 ```python
@@ -20,6 +27,16 @@ import date_clean as dc
 date_str = "1 hora"
 formatted_date = dc.homogenize_date(date_str, include_time=True, timezone="America/La_Paz")
 print(formatted_date)  # Output (fecha y hora actual - 1 hora en formato ISO 8601): 2024-08-04T04:30:00-04:00
+
+date_century = "05/Agosto/24"
+
+# Asumir siglo actual (2024)
+formatted_date = dc.homogenize_date(date_century, include_time=True, timezone="America/La_Paz")
+print(formatted_date)  # Output: 2024-08-05T...
+
+# No asumir siglo actual (1924)
+formatted_date = dc.homogenize_date(date_century, include_time=True, timezone="America/La_Paz", assume_current_century=False)
+print(formatted_date)  # Output: 1924-08-05T...
 ```
 
 **Manejo de diversos formatos:**

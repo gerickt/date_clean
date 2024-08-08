@@ -35,7 +35,8 @@ def preprocess_date_string(date_str):
     for spanish_day, english_day in SPANISH_WEEKDAYS.items():
         date_str = date_str.replace(spanish_day, english_day)
 
-    date_str = re.sub(r"[^\w\s/:,-]", "", date_str)
+    # Incluimos el punto en la expresión regular
+    date_str = re.sub(r"[^\w\s/:,-.]", "", date_str)
 
     # Eliminar espacios extra
     date_str = ' '.join(date_str.split())
@@ -71,7 +72,7 @@ def parse_relative_time(date_str, timezone="UTC"):
     return None
 
 
-def homogenize_date(date_str, include_time=False, timezone="UTC"):
+def homogenize_date(date_str, include_time=False, timezone="UTC", assume_current_century=True):
     date_str = preprocess_date_string(date_str)
 
     relative_date = parse_relative_time(date_str, timezone)
@@ -79,28 +80,22 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
         return relative_date
 
     try:
-        # Intentamos analizar la fecha como ISO 8601 primero
         try:
             date_obj = datetime.fromisoformat(date_str)
             if date_obj.tzinfo is None:
                 date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
             date_obj = date_obj.astimezone(ZoneInfo(timezone))
         except ValueError:
-            # Si no es ISO 8601, usamos dateutil.parser.parse
-            date_obj = parser.parse(
-                date_str, dayfirst=True, yearfirst=False, fuzzy=True)
+            date_obj = parser.parse(date_str, dayfirst=True, fuzzy=True)
 
-            # Asegura que la fecha tenga zona horaria y hora
             if date_obj.tzinfo is None:
                 date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
 
-            # Si no se proporciona la hora, asumir la hora actual
             if date_obj.hour == 0 and date_obj.minute == 0 and date_obj.second == 0:
                 now = datetime.now(ZoneInfo(timezone))
                 date_obj = date_obj.replace(
                     hour=now.hour, minute=now.minute, second=now.second)
 
-        # Formatear la fecha
         if include_time:
             return date_obj.astimezone(ZoneInfo(timezone)).replace(microsecond=0, second=0).isoformat()
         else:
@@ -109,9 +104,21 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
     except (ValueError, OverflowError):
         # Intenta manejar formatos adicionales
         date_str = date_str.strip()
-        for fmt in ["%d.%m.%Y", "%Y.%m.%d", "%d/%m/%y", "%d-%b-%Y", "%d-%B-%Y", "%d/%B/%Y", "%d/%B/%y", "%A, %d %B %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d %B %Y", "%B %d, %Y", "%A, %d de %B de %Y"]:
+        for fmt in ["%d.%m.%Y", "%Y.%m.%d", "%d/%m/%y", "%d-%b-%Y", "%d-%B-%Y", "%d/%B/%Y", "%d/%B/%y", "%A, %d %B %Y",  "%A, %d de %B de %Y",  "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d",  "%d %m %Y", "%d %B %Y",  "%B %d, %Y", "%b %d %Y"]:  # Agregamos más formatos
             try:
                 date_obj = datetime.strptime(date_str, fmt)
+
+                # Corrección de año abreviado
+                if assume_current_century and date_obj.year < 100:
+                    current_year = datetime.now(ZoneInfo(timezone)).year
+                    century = current_year // 100 * 100
+                    date_obj = date_obj.replace(year=century + date_obj.year)
+
+                # Corrección de la inversión de día y mes
+                if date_obj.day > 31:
+                    date_obj = date_obj.replace(
+                        day=date_obj.month, month=date_obj.day)
+
                 if date_obj.tzinfo is None:
                     date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
                 date_obj = date_obj.astimezone(ZoneInfo(timezone))
@@ -120,6 +127,7 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
                     return date_obj.astimezone(ZoneInfo(timezone)).replace(microsecond=0, second=0).isoformat()
                 else:
                     return date_obj.astimezone(ZoneInfo(timezone)).date().isoformat()
+
             except ValueError:
                 pass
         else:
@@ -137,7 +145,6 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
                 except ValueError:
                     return None
             elif date_str.lower() == "hace un momento":
-                # Define un umbral para "hace un momento" (por ejemplo, 5 minutos)
                 threshold = 5
                 date_obj = datetime.now(
                     ZoneInfo(timezone)) - timedelta(minutes=threshold)
