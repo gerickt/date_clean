@@ -1,7 +1,7 @@
 import re
 from datetime import datetime, timedelta
 from dateutil import parser
-from zoneinfo import ZoneInfo  # Importamos ZoneInfo
+from zoneinfo import ZoneInfo
 
 SPANISH_MONTHS = {
     "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
@@ -36,12 +36,15 @@ def preprocess_date_string(date_str):
         date_str = date_str.replace(spanish_day, english_day)
 
     date_str = re.sub(r"[^\w\s/:,-]", "", date_str)
+
+    # Eliminar espacios extra
+    date_str = ' '.join(date_str.split())
+
     return date_str
 
 
-# Cambiamos el timezone por defecto a UTC
 def parse_relative_time(date_str, timezone="UTC"):
-    now = datetime.now(ZoneInfo(timezone))  # Usamos ZoneInfo
+    now = datetime.now(ZoneInfo(timezone))
 
     for pattern, time_unit in RELATIVE_TIME_PATTERNS:
         match = pattern.search(date_str)
@@ -49,30 +52,25 @@ def parse_relative_time(date_str, timezone="UTC"):
             value = int(match.group(1))
             delta = timedelta(**{time_unit: value})
             new_time = now - delta
-            # Usamos ZoneInfo
             return new_time.astimezone(ZoneInfo(timezone)).replace(microsecond=0).isoformat()
 
-    # Si no coincide con ningún patrón relativo, asumimos que es solo la hora o el día
     if re.match(r"^\d+\s+horas?$", date_str):
         hours = int(date_str.split()[0])
         today = datetime.now(ZoneInfo(timezone)).replace(
-            second=0, microsecond=0)  # Usamos ZoneInfo
+            second=0, microsecond=0)
         new_time = today - timedelta(hours=hours)
-        # Usamos ZoneInfo
         return new_time.astimezone(ZoneInfo(timezone)).replace(microsecond=0).isoformat()
 
     if re.match(r"^\d+\s+días?$", date_str):
         days = int(date_str.split()[0])
         today = datetime.now(ZoneInfo(timezone)).replace(
-            second=0, microsecond=0)  # Usamos ZoneInfo
+            second=0, microsecond=0)
         new_time = today - timedelta(days=days)
-        # Usamos ZoneInfo
         return new_time.astimezone(ZoneInfo(timezone)).replace(microsecond=0).isoformat()
 
     return None
 
 
-# Cambiamos el timezone por defecto a UTC
 def homogenize_date(date_str, include_time=False, timezone="UTC"):
     date_str = preprocess_date_string(date_str)
 
@@ -84,10 +82,8 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
         # Intentamos analizar la fecha como ISO 8601 primero
         try:
             date_obj = datetime.fromisoformat(date_str)
-            # Si la fecha no tiene zona horaria, le asignamos la zona horaria del usuario
             if date_obj.tzinfo is None:
                 date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
-            # Convertimos la fecha a la zona horaria del usuario
             date_obj = date_obj.astimezone(ZoneInfo(timezone))
         except ValueError:
             # Si no es ISO 8601, usamos dateutil.parser.parse
@@ -96,22 +92,59 @@ def homogenize_date(date_str, include_time=False, timezone="UTC"):
 
             # Asegura que la fecha tenga zona horaria y hora
             if date_obj.tzinfo is None:
-                date_obj = date_obj.replace(
-                    tzinfo=ZoneInfo(timezone))  # Usamos ZoneInfo
+                date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
 
             # Si no se proporciona la hora, asumir la hora actual
             if date_obj.hour == 0 and date_obj.minute == 0 and date_obj.second == 0:
-                now = datetime.now(ZoneInfo(timezone))  # Usamos ZoneInfo
+                now = datetime.now(ZoneInfo(timezone))
                 date_obj = date_obj.replace(
                     hour=now.hour, minute=now.minute, second=now.second)
 
+        # Formatear la fecha
         if include_time:
-            # Eliminamos los segundos para evitar errores de precisión
-            # Usamos ZoneInfo
             return date_obj.astimezone(ZoneInfo(timezone)).replace(microsecond=0, second=0).isoformat()
         else:
-            # Usamos ZoneInfo
             return date_obj.astimezone(ZoneInfo(timezone)).date().isoformat()
 
     except (ValueError, OverflowError):
-        return None
+        # Intenta manejar formatos adicionales
+        date_str = date_str.strip()
+        for fmt in ["%d.%m.%Y", "%Y.%m.%d", "%d/%m/%y", "%d-%b-%Y", "%d-%B-%Y", "%d/%B/%Y", "%d/%B/%y", "%A, %d %B %Y", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d %B %Y", "%B %d, %Y", "%A, %d de %B de %Y"]:
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                if date_obj.tzinfo is None:
+                    date_obj = date_obj.replace(tzinfo=ZoneInfo(timezone))
+                date_obj = date_obj.astimezone(ZoneInfo(timezone))
+
+                if include_time:
+                    return date_obj.astimezone(ZoneInfo(timezone)).replace(microsecond=0, second=0).isoformat()
+                else:
+                    return date_obj.astimezone(ZoneInfo(timezone)).date().isoformat()
+            except ValueError:
+                pass
+        else:
+            # Manejar palabras clave
+            if date_str.lower() == "ayer":
+                date_obj = datetime.now(ZoneInfo(timezone)) - timedelta(days=1)
+            elif date_str.lower() == "hoy":
+                date_obj = datetime.now(ZoneInfo(timezone))
+            elif date_str.startswith("hoy a las"):
+                time_str = date_str.split("hoy a las ")[1]
+                try:
+                    time_obj = datetime.strptime(time_str, "%H:%M")
+                    date_obj = datetime.now(ZoneInfo(timezone)).replace(
+                        hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+                except ValueError:
+                    return None
+            elif date_str.lower() == "hace un momento":
+                # Define un umbral para "hace un momento" (por ejemplo, 5 minutos)
+                threshold = 5
+                date_obj = datetime.now(
+                    ZoneInfo(timezone)) - timedelta(minutes=threshold)
+            else:
+                return None
+
+            if include_time:
+                return date_obj.astimezone(ZoneInfo(timezone)).replace(microsecond=0, second=0).isoformat()
+            else:
+                return date_obj.astimezone(ZoneInfo(timezone)).date().isoformat()
