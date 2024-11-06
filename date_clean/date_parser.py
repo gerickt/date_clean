@@ -29,14 +29,16 @@ RELATIVE_TIME_PATTERNS = [
 def preprocess_date_string(date_str):
     date_str = date_str.lower()
 
+    # Reemplazar puntos por barras en formatos como "05.08.2024" y "5.8.2024"
+    date_str = date_str.replace(".", "/")
+
     for spanish_month, month_num in SPANISH_MONTHS.items():
         date_str = date_str.replace(spanish_month, month_num)
 
     for spanish_day, english_day in SPANISH_WEEKDAYS.items():
         date_str = date_str.replace(spanish_day, english_day)
 
-    # Incluimos el punto en la expresión regular
-    date_str = re.sub(r"[^\w\s/:,-.]", "", date_str)
+    date_str = re.sub(r"[^\w\s/:,]", "", date_str)
 
     # Eliminar espacios extra
     date_str = ' '.join(date_str.split())
